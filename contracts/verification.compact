@@ -1,0 +1,189 @@
+pragma language_version 0.23;
+
+import CompactStandardLibrary;
+
+// =============================================================================
+// SkillProof — Privacy-Preserving Skill Verification Platform
+// -----------------------------------------------------------------------------
+// PUBLIC  (on-chain, visible to every observer):
+//   - students:          pseudonymous studentId -> { profileCommitment, active, registeredAt }
+//   - claimedCerts:      studentId -> certId -> certificate commitment (persistentHash(cert))
+//   - verifiedCerts:     studentId -> certId -> { skill, verifiedAt }   (set by the issuer)
+//   - verificationCount: studentId -> number of successful proveSkill calls (audit counter)
+//   - issuer:            the authorized issuer's derived public key (sealed at deploy)
+//
+// PRIVATE (never on-chain; only inside the prover's wallet / private state):
+//   - the student's full profile: name, email, college, examScore, cgpa, skills
+//     (strings are stored off-chain as fixed-width Bytes<N>; they never reach the ledger)
+//   - the random commitment opening — prevents dictionary attacks on the profile
+//   - the student's local secret key
+//   - the full certificate contents: id, skill, issuer, issuedAt, nonce
+//
+// Privacy guarantees:
+//   - registerStudent stores ONLY persistentCommit<Profile>(profile, opening).
+//     The raw profile fields can never be read off the ledger or derived from it.
+//   - addCertificate stores ONLY persistentHash<Certificate>(cert) per certId.
+//     issuer / issuedAt / skill / nonce of the certificate never reach the ledger.
+//   - proveSkill reveals ONLY { studentId, skill, result: true, answeredAt }
+//     via one deliberate disclose(). Everything else stays inside the proof.
+//   - every other disclose() below is deliberate and minimal.
+// =============================================================================
+
+struct Profile {
+  name: Bytes<64>;
+  email: Bytes<96>;
+  college: Bytes<96>;
+  examScore: Uint<64>;
+  cgpa: Uint<64>;
+  skills: Bytes<128>;
+  nonce: Bytes<32>;
+}
+
+struct Certificate {
+  id: Bytes<32>;
+  skill: Bytes<64>;
+  issuer: Bytes<64>;
+  issuedAt: Uint<64>;
+  nonce: Bytes<32>;
+}
+
+struct PublicProfile {
+  profileCommitment: Bytes<32>;
+  active: Boolean;
+  registeredAt: Uint<64>;
+}
+
+struct VerifiedCert {
+  skill: Bytes<64>;
+  verifiedAt: Uint<64>;
+}
+
+struct Answer {
+  studentId: Bytes<32>;
+  skill: Bytes<64>;
+  result: Boolean;
+  answeredAt: Uint<64>;
+}
+
+export ledger students: Map<Bytes<32>, PublicProfile>;
+export ledger claimedCerts: Map<Bytes<32>, Map<Bytes<32>, Bytes<32>>>;
+export ledger verifiedCerts: Map<Bytes<32>, Map<Bytes<32>, VerifiedCert>>;
+export ledger verificationCount: Map<Bytes<32>, Uint<64>>;
+export sealed ledger issuer: Bytes<32>;
+
+constructor(issuerKey: Bytes<32>) {
+  issuer = disclose(issuerKey);
+}
+
+// Private witnesses. localSecretKey comes from the wallet; the rest come from
+// the DApp's private state. None of these values are ever disclosed.
+witness localSecretKey(): Bytes<32>;
+witness profile(): Profile;
+witness profileOpening(): Bytes<32>;
+witness certificate(certId: Bytes<32>): Certificate;
+
+// Domain-separated pseudonymous keys. Exporting these lets the TypeScript
+// driver compute the same values for display and for the constructor arg.
+export circuit studentKey(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "skillproof:student:"), sk]);
+}
+
+export circuit issuerKey(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "skillproof:issuer:"), sk]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1) registerStudent — the student proves they hold a full profile WITHOUT
+//    revealing any of it. Only persistentCommit<Profile>(profile, opening) is
+//    written to the public ledger. The disclosed studentId is a pseudonym, not
+//    a name. Circuit inputs: profile() and profileOpening() are private.
+// ─────────────────────────────────────────────────────────────────────────────
+export circuit registerStudent(registeredAt: Uint<64>): [] {
+  const sk = localSecretKey();
+  const p = profile();
+  const opening = profileOpening();
+  const studentId = studentKey(sk);
+  assert(!students.member(disclose(studentId)), "Student is already registered");
+  students.insert(
+    disclose(studentId),
+    disclose(PublicProfile {
+      profileCommitment: persistentCommit<Profile>(p, opening),
+      active: true,
+      registeredAt: registeredAt,
+    }),
+  );
+  claimedCerts.insert(disclose(studentId), default<Map<Bytes<32>, Bytes<32>>>);
+  verifiedCerts.insert(disclose(studentId), default<Map<Bytes<32>, VerifiedCert>>);
+  verificationCount.insert(disclose(studentId), 0 as Uint<64>);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2) addCertificate — the student claims a certificate by committing to its
+//    full content (persistentHash<Certificate>). Only the certId and the
+//    commitment are public; issuer / issuedAt / skill stay private.
+//    Circuit input: certificate() is a private witness.
+// ─────────────────────────────────────────────────────────────────────────────
+export circuit addCertificate(certId: Bytes<32>): [] {
+  const sk = localSecretKey();
+  const cert = certificate(disclose(certId));
+  const studentId = studentKey(sk);
+  assert(students.member(disclose(studentId)), "Student is not registered");
+  assert(cert.id == certId, "Certificate ID does not match");
+  claimedCerts.lookup(disclose(studentId)).insert(disclose(cert.id), disclose(persistentHash<Certificate>(cert)));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3) markVerified — ONLY the authorized issuer may mark a claimed certificate
+//    as verified for a given skill. The verification fact (studentId, certId,
+//    skill, verifiedAt) is public on purpose: it is exactly what employers
+//    query. No private witness data is involved.
+// ─────────────────────────────────────────────────────────────────────────────
+export circuit markVerified(studentId: Bytes<32>, certId: Bytes<32>, skill: Bytes<64>, verifiedAt: Uint<64>): [] {
+  const sk = localSecretKey();
+  assert(issuerKey(sk) == issuer, "Only the authorized issuer may verify certificates");
+  assert(students.member(disclose(studentId)), "Student is not registered");
+  assert(claimedCerts.lookup(disclose(studentId)).member(disclose(certId)), "Student has not claimed this certificate");
+  verifiedCerts.lookup(disclose(studentId)).insert(disclose(certId), disclose(VerifiedCert { skill: skill, verifiedAt: verifiedAt }));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4) proveSkill — answers the employer's question
+//    "Does this student have a verified <querySkill> certificate?" with a ZK
+//    proof that:
+//      - the held profile opens the on-chain commitment  (profile()/opening())
+//      - the held certificate is on-chain verified for querySkill
+//      - the held certificate binds to the on-chain claim (persistentHash)
+//    The circuit discloses ONLY { studentId, skill, result: true, answeredAt }
+//    — the employer's TRUE, with nothing about name/email/college/score/cgpa.
+//    Circuit inputs: profile(), profileOpening(), certificate() are private.
+// ─────────────────────────────────────────────────────────────────────────────
+export circuit proveSkill(querySkill: Bytes<64>, certId: Bytes<32>, answeredAt: Uint<64>): Answer {
+  const sk = localSecretKey();
+  const p = profile();
+  const opening = profileOpening();
+  const cert = certificate(disclose(certId));
+  const studentId = studentKey(sk);
+
+  assert(students.member(disclose(studentId)), "Student is not registered");
+  const profileRecord = students.lookup(disclose(studentId));
+  assert(profileRecord.active, "Student profile is inactive");
+  assert(profileRecord.profileCommitment == persistentCommit<Profile>(p, opening), "Held profile does not open the registered commitment");
+
+  assert(verifiedCerts.lookup(disclose(studentId)).member(disclose(cert.id)), "Certificate is not verified on-chain");
+  const verified = verifiedCerts.lookup(disclose(studentId)).lookup(disclose(cert.id));
+  assert(verified.skill == querySkill, "Verified certificate does not match the requested skill");
+  assert(cert.skill == querySkill, "Held certificate does not match the requested skill");
+  assert(claimedCerts.lookup(disclose(studentId)).lookup(disclose(cert.id)) == persistentHash<Certificate>(cert), "Held certificate does not bind to the on-chain claim");
+
+  // Public audit counter: how many times this pseudonymous student has been verified.
+  const count = verificationCount.lookup(disclose(studentId));
+  verificationCount.insert(disclose(studentId), disclose((count + 1) as Uint<64>));
+
+  // The deliberate, minimal disclosure — the employer's answer.
+  return disclose(Answer {
+    studentId: studentId,
+    skill: querySkill,
+    result: true,
+    answeredAt: answeredAt,
+  });
+}
