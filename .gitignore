@@ -58,6 +58,8 @@ temp/
 
 # Midnight wallet sync state (per-network serialized wallet state cache)
 .midnight-wallet-state/
+# level-js private state store (created at runtime by levelPrivateStateProvider)
+midnight-level-db/
 
 # SkillProof specifics
 student-state.json
