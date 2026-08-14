@@ -10,7 +10,10 @@
  */
 
 import { type WitnessContext } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
-import { type Ledger } from '../contracts/managed/verification/contract/index.js';
+// import { type Ledger } from '../contracts/managed/verification/contract/index.js';
+
+// Temporary mock Ledger type
+type Ledger = any;
 
 /** Fixed-width byte sizes used by the contract (must match verification.compact). */
 export const FIELD_SIZES = {

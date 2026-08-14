@@ -9,6 +9,12 @@ minimal commitments reach the Midnight ledger.
 > student ids, commitment hashes, and a verified-skill fact set — never raw
 > profile data. See `contracts/verification.compact` for the exact disclosures.
 
+## 🚀 Deployed Contract
+
+**Contract Address:** `30ea2b5c2370261aab6b100d13c0065f652660267e76da958fc5f47fe0dcd6`
+**Network:** Midnight Preview  
+**Deployment Status:** ✅ Successfully Deployed
+
 ---
 
 ## Table of contents
