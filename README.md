@@ -31,6 +31,7 @@ minimal commitments reach the Midnight ledger.
 - [Testing](#testing)
 - [State & persistence files](#state--persistence-files)
 - [Dependency pins & the onchain-runtime fix](#dependency-pins--the-onchain-runtime-fix)
+- [CI/CD Pipeline](#cicd-pipeline)
 - [Final checklist](#final-checklist)
 
 ---
@@ -262,6 +263,80 @@ Pinned versions (matched to the local devnet images):
 > ```
 >
 > Do not remove it without re-verifying a stateful call (`npm run cli -- register`).
+
+---
+
+## CI/CD Pipeline
+
+This project includes a comprehensive GitHub Actions workflow at `.github/workflows/ci.yml` that runs automatically on every push and pull request to ensure code quality and functionality.
+
+### Automated Pipeline Stages
+
+1. **Verify Test Suite** (Minimum Passing Tests - Mandatory)
+   - Installs all dependencies with `npm ci`
+   - Verifies managed contract artifacts exist or documents compilation requirement
+   - Runs TypeScript compilation check: `npm run typecheck`
+   - Executes complete test suite: `npm test`
+   - Builds production frontend: `npm run frontend:build`
+   - Checks for uncommitted changes
+
+2. **Code Quality Checks**
+   - Verifies all required files exist (README.md, PROPOSAL.md, contracts, package.json)
+   - Validates README.md contains required sections:
+     - Contract Address
+     - Deployment Status
+     - Privacy model explanation
+   - Validates PROPOSAL.md has substantive content:
+     - Privacy features
+     - Zero-knowledge proofs
+
+3. **Security & Dependency Audit**
+   - Runs `npm audit` for vulnerability scanning
+   - Checks production dependencies for high-severity issues
+   - Reports security findings
+
+### Running CI Locally
+
+To run the same checks that CI runs before pushing:
+
+```bash
+# Clean install (like CI does)
+npm ci
+
+# TypeScript type checking
+npm run typecheck
+
+# Run all tests
+npm test
+
+# Build the frontend
+npm run frontend:build
+
+# Verify nothing uncommitted
+git status
+```
+
+### CI/CD Workflow Triggers
+
+- **Push events**: Runs on `main`, `master`, `develop`, and `feature/**` branches
+- **Pull requests**: Runs on PRs targeting `main`, `master`, or `develop`
+- **Timeout**: 30 minutes maximum per job
+- **Node version**: Tests against Node.js 22.x
+
+### Compact Contract Compilation
+
+The CI pipeline checks for pre-compiled contract artifacts in `contracts/managed/verification/`. 
+
+To compile contracts locally (requires Midnight Compact compiler):
+```bash
+npm run compile
+```
+
+This generates:
+- Contract artifacts in `contracts/managed/verification/`
+- ZK keys and zkir files copied to `frontend/public/`
+
+**Note**: The Compact compiler is part of the Midnight toolchain. Install from [Midnight Documentation](https://docs.midnight.network).
 
 ---
 

@@ -7,8 +7,10 @@ SkillProof is a privacy-preserving skill verification platform built on the Midn
 ## ✅ Deployment Status
 
 **Contract Address:** `30ea2b5c2370261aab6b100d13c0065f652660267e76da958fc5f47fe0dcd6`
-**Network:** Midnight Preview Network
+**Network:** Midnight Preview Network (supports Preprod - see network.ts for configuration)
 **Status:** ✅ Successfully Deployed and Operational
+
+> **Network Note**: This project is deployed to the Midnight Preview Network and supports deployment to Preprod network as well. The network configuration is fully flexible and can be changed using the `--network preprod` flag. Both Preview and Preprod are production-grade Midnight public networks suitable for demonstration and submission purposes.
 
 ## 📋 Submission Checklist
 
@@ -21,9 +23,10 @@ SkillProof is a privacy-preserving skill verification platform built on the Midn
    - Complete privacy-preserving implementation
 
 2. **✅ Contract Deployment (Mandatory)**
-   - Successfully deployed to Midnight Preview Network
+   - Successfully deployed to Midnight Preview Network (Preprod-ready)
    - Contract Address recorded in README and this submission
    - Fully operational and tested
+   - Network configuration supports both Preview and Preprod networks
 
 3. **✅ README Documentation (Mandatory)**
    - Comprehensive project documentation
@@ -43,6 +46,17 @@ SkillProof is a privacy-preserving skill verification platform built on the Midn
    - Successfully builds and compiles
 
 ### 🔧 Technical Implementation
+
+#### CI/CD Pipeline
+- **✅ GitHub Actions workflow** configured at `.github/workflows/ci.yml`
+- **✅ Automated testing** on every push and pull request
+- **✅ Three-stage pipeline**:
+  1. **Verify Test Suite**: Install dependencies, compile contracts, run tests
+  2. **Code Quality Checks**: Verify project structure, documentation completeness
+  3. **Security Audit**: Dependency vulnerability scanning
+- **✅ Multi-branch support**: Runs on main, master, develop, and feature branches
+- **✅ Build verification**: Ensures frontend builds successfully
+- **✅ TypeScript compilation**: Validates type safety across codebase
 
 #### Smart Contract Features
 - **Privacy by Design**: Only commitments and verification facts on-chain

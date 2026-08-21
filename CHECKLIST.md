@@ -64,12 +64,22 @@ Legend: ✅ = verified clean · 🚧 = in progress · ❌ = needs work
 - [✅] Privacy guarantees: No personal data ever reaches the blockchain
 - [✅] Pseudonymous identities with domain separation
 
-## 7. Version control & deliverable
+## 7. CI/CD Pipeline
+
+- [✅] GitHub Actions workflow created at `.github/workflows/ci.yml`
+- [✅] Automated testing on every push and pull request
+- [✅] Three-stage pipeline: Verify Test Suite, Code Quality, Security Audit
+- [✅] Build verification ensures frontend compiles successfully
+- [✅] Documentation completeness checks automated
+- [✅] Multi-branch support (main, master, develop, feature/*)
+
+## 8. Version control & deliverable
 
 - [✅] `git status` clean (only ignored runtime artifacts present)
 - [✅] README.md, PROPOSAL.md, CHECKLIST.md, and SUBMISSION.md committed
 - [✅] Contract deployment address documented
 - [✅] `overrides` + `.gitignore` committed (onchain-runtime fix, build artifacts)
+- [✅] CI/CD pipeline configured and committed
 
 ---
 
